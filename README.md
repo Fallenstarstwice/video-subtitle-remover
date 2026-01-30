@@ -177,6 +177,18 @@ python gui.py
 python ./backend/main.py
 ```
 
+其中,命令行运行时, 修改`subtitle_area.yaml`中的值改变字幕范围,默认值为整个画面:
+```yaml
+# 左上角为坐标原点,坐标轴垂直向下为y正方向,水平朝右为x正方向
+
+Y : 0.0  #起始点height
+H : 1.0  #结束点height
+X : 0.0  #起始点width
+W : 1.0  #结束点width
+```
+
+>字幕范围减小可以减少计算量,加快处理每帧速度
+
 ## 常见问题
 1. 提取速度慢怎么办
 

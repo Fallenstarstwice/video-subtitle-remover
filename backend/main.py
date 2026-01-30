@@ -970,16 +970,73 @@ class SubtitleRemover:
             self.video_temp_file.close()
 
 
+# 读取配置文件，获取字幕区域比例并转换为像素坐标
+def read_subtitle_area_from_config(video_path):
+    import yaml
+    import cv2
+
+    # 2. 先获取视频尺寸（参考 gui.py:198-200）
+    video_cap = cv2.VideoCapture(video_path)
+    if not video_cap.isOpened():
+        raise ValueError(f"无法打开视频文件: {video_path}")
+
+    frame_height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    video_cap.release()
+
+    # 3. 解析 subtitle_area.yaml 配置文件
+    with open('./backend/subtitle_area.yaml', 'r', encoding='utf-8') as f:
+        sub_area_config = yaml.safe_load(f)
+        y_p = sub_area_config.get('Y', None)    # Y轴起始比例
+        h_p = sub_area_config.get('H', None)    # 高度比例
+        x_p = sub_area_config.get('X', None)    # X轴起始比例
+        w_p = sub_area_config.get('W', None)    # 宽度比例
+    # 4. 验证配置完整性
+    if None in [y_p, h_p, x_p, w_p]:
+        raise ValueError("subtitle_area.yaml 配置不完整，请检查 Y, H, X, W 是否都存在")
+
+    # 5. 【关键】将比例转换为像素（参考 gui.py:213-216）
+    y = frame_height * y_p   # Y轴起始位置（像素）
+    h = frame_height * h_p   # 高度（像素）
+    x = frame_width * x_p    # X轴起始位置（像素）
+    w = frame_width * w_p    # 宽度（像素）
+
+    # 6. 【关键】计算坐标（参考 gui.py:257-260）
+    ymin = int(y)
+    ymax = int(y + h)
+    xmin = int(x)
+    xmax = int(x + w)
+
+    # 7. 【关键】边界检查（参考 gui.py:261-264）
+    if ymax > frame_height:
+        ymax = frame_height
+    if xmax > frame_width:
+        xmax = frame_width
+
+    # 验证坐标合理性
+    if ymin >= ymax or xmin >= xmax:
+        raise ValueError(f"计算出的坐标不合理: ymin={ymin}, ymax={ymax}, xmin={xmin}, xmax={xmax}")
+
+    print(f'Loaded subtitle area from subtitle_area.yaml:')
+    print(f'  Ratio: Y={y_p}, H={h_p}, X={x_p}, W={w_p}')
+    print(f'  Coordinates: ({ymin}, {ymax}, {xmin}, {xmax})')
+    print(f'  Video size: {frame_width}x{frame_height}\n')
+
+
+    return ymin, ymax, xmin, xmax
+
+
 if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
     # 1. 提示用户输入视频路径
     video_path = input(f"Please input video or image file path: ").strip()
-    # 判断视频路径是不是一个目录，是目录的化，批量处理改目录下的所有视频文件
-    # 2. 按以下顺序传入字幕区域
-    # sub_area = (ymin, ymax, xmin, xmax)
-    # 3. 新建字幕提取对象
+
+    # 8. 按照代码库约定创建 sub_area（格式：ymin, ymax, xmin, xmax）
+    sub_area = read_subtitle_area_from_config(video_path)
+
+    # 9. 新建字幕提取对象
     if is_video_or_image(video_path):
-        sd = SubtitleRemover(video_path, sub_area=None)
+        sd = SubtitleRemover(video_path, sub_area=sub_area)
         sd.run()
     else:
         print(f'Invalid video path: {video_path}')
