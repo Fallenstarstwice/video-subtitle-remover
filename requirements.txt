@@ -17,7 +17,7 @@ numpy
 protobuf
 av
 einops
-paddleocr
+paddleocr==2.10.0
 paddle2onnx
 onnxruntime-gpu
 onnxruntime-directml;  sys_platform == 'win32'
