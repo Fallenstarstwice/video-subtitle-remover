@@ -13,6 +13,7 @@ Cut and Remove - 主入口模块
 import sys
 import argparse
 import time
+import threading
 from pathlib import Path
 from queue import Queue
 from typing import Optional
@@ -243,24 +244,42 @@ def main():
     # 记录开始时间
     start_time = time.time()
 
+    # 用于存储线程执行结果的容器
+    producer_stats = {}
+    consumer_stats = {}
+    producer_error = None
+    consumer_error = None
+
     try:
-        # 在主线程中运行生产者和消费者（顺序执行）
-        # 注意: 由于SubtitleRemover使用深度学习模型，多线程可能导致GPU资源竞争
-        # 因此采用顺序执行模式
+        # 创建并启动生产者线程和消费者线程（并发执行）
+        print("\n启动并发处理...")
+        print(f"- 阶段1 (Cutoff): 将视频片段删除后的视频放入队列")
+        print(f"- 阶段2 (AI去字幕): 从队列取出视频并去除字幕")
+        print(f"- 队列大小: {config.max_queue_size}\n")
 
-        print("\n[阶段1] 开始处理视频片段删除...")
-        producer_stats = run_producer(
-            excel_path=str(excel_path),
-            task_queue=task_queue,
-            config=config,
-            ffmpeg_path=FFMPEG_PATH
+        # 创建生产者线程
+        producer_thread = threading.Thread(
+            target=lambda: producer_stats.update(
+                run_producer(str(excel_path), task_queue, config, FFMPEG_PATH)
+            ),
+            name="Producer-Thread"
         )
 
-        print("\n[阶段2] 开始处理字幕去除...")
-        consumer_stats = run_consumer(
-            task_queue=task_queue,
-            config=config
+        # 创建消费者线程
+        consumer_thread = threading.Thread(
+            target=lambda: consumer_stats.update(
+                run_consumer(task_queue, config)
+            ),
+            name="Consumer-Thread"
         )
+
+        # 启动两个线程
+        producer_thread.start()
+        consumer_thread.start()
+
+        # 等待两个线程完成
+        producer_thread.join()
+        consumer_thread.join()
 
         # 计算总耗时
         total_time = time.time() - start_time
@@ -275,7 +294,7 @@ def main():
         save_failed_tasks_log(producer_stats, consumer_stats, config.final_dir)
 
         # 返回码
-        failed_count = producer_stats['failed'] + consumer_stats['failed']
+        failed_count = producer_stats.get('failed', 0) + consumer_stats.get('failed', 0)
         if failed_count > 0:
             sys.exit(1)
         else:

@@ -211,7 +211,7 @@ class VideoProducer:
         failed_tasks = []
 
         with tqdm(total=len(valid_results), unit='video', desc='[Producer] Cutting',
-                  position=0, file=sys.__stdout__) as pbar:
+                  position=0, leave=True, file=sys.__stdout__) as pbar:
             for row_data in valid_results:
                 task = self._process_video(row_data, excel_dir)
 

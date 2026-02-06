@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from typing import Optional
 from queue import Queue
-from tqdm import tqdm
 
 # 添加backend模块路径
 current_dir = Path(__file__).parent
@@ -86,7 +85,8 @@ class VideoConsumer:
             tuple: (ymin, ymax, xmin, xmax) 或 None
         """
         try:
-            sub_area = read_subtitle_area_from_config(video_path)
+            # 传递 verbose=False 以禁用输出，避免干扰进度条
+            sub_area = read_subtitle_area_from_config(video_path, verbose=False)
             return sub_area
         except Exception as e:
             self.logger.warning(f"读取字幕区域配置失败: {e}")
@@ -107,19 +107,21 @@ class VideoConsumer:
             # 读取字幕区域配置
             sub_area = self._get_subtitle_area(task.cut_video_path)
 
-            self.logger.info(
-                f"[行{task.row_index}] 正在去字幕: {Path(task.cut_video_path).name}"
-            )
-
             # 创建字幕去除对象
+            # 注意：不禁用进度条，让backend显示该视频的处理进度
             remover = SubtitleRemover(
                 vd_path=task.cut_video_path,
                 sub_area=sub_area,
-                gui_mode=False
+                gui_mode=False,
+                disable_progress=False  # 改为False，让backend显示进度条
             )
 
             # 执行去字幕处理
             start_time = time.time()
+
+            # 在处理前打印当前视频信息
+            print(f"\n[行{task.row_index}] 正在处理: {Path(task.cut_video_path).name}")
+
             remover.run()
             elapsed_time = time.time() - start_time
 
@@ -132,33 +134,23 @@ class VideoConsumer:
                 if generated_output != task.final_output_path:
                     import shutil
                     shutil.move(generated_output, task.final_output_path)
-                    self.logger.debug(
-                        f"  移动文件: {generated_output} -> {task.final_output_path}"
-                    )
             else:
                 self.logger.error(f"生成的输出文件不存在: {generated_output}")
                 return False
 
-            self.logger.info(
-                f"[行{task.row_index}] ✓ 去字幕完成: {task.final_output_path} "
-                f"(耗时: {elapsed_time:.1f}秒)"
-            )
+            print(f"[行{task.row_index}] ✓ 完成: {Path(task.final_output_path).name} (耗时: {elapsed_time:.1f}秒)")
 
             # 如果不保留中间文件，删除cutoff后的视频
             if not self.config.keep_intermediate:
                 try:
                     os.remove(task.cut_video_path)
-                    self.logger.debug(f"  已删除中间文件: {task.cut_video_path}")
                 except Exception as e:
                     self.logger.warning(f"删除中间文件失败: {e}")
 
             return True
 
         except Exception as e:
-            self.logger.error(
-                f"[行{task.row_index}] {Path(task.cut_video_path).name} - "
-                f"去字幕处理失败: {e}"
-            )
+            print(f"[行{task.row_index}] ✗ 失败: {Path(task.cut_video_path).name} - {e}")
             return False
 
     def run(self) -> dict:
@@ -197,7 +189,7 @@ class VideoConsumer:
 
             processed_count += 1
 
-            # 处理视频
+            # 处理视频（每个视频会显示自己的进度条）
             success = self._process_video(task)
 
             if success:

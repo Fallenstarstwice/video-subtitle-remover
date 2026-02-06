@@ -22,7 +22,8 @@ _to_tensors = transforms.Compose([
 
 
 class STTNInpaint:
-    def __init__(self):
+    def __init__(self, disable_progress=False):
+        self.disable_progress = disable_progress
         self.device = config.device
         # 1. 创建InpaintGenerator模型实例并装载到选择的设备上
         self.model = InpaintGenerator().to(self.device)
@@ -87,7 +88,8 @@ class STTNInpaint:
                     frame[inpaint_area[k][0]:inpaint_area[k][1], :, :] = mask_area * comp + (1 - mask_area) * frame[inpaint_area[k][0]:inpaint_area[k][1], :, :]
                 # 将最终帧添加到列表
                 inpainted_frames.append(frame)
-                print(f'processing frame, {len(frames_hr) - j} left')
+                if not self.disable_progress:
+                    print(f'processing frame, {len(frames_hr) - j} left')
         return inpainted_frames
 
     @staticmethod
@@ -201,9 +203,9 @@ class STTNInpaint:
             to_H -= h
         return inpaint_area  # 返回绘画区域列表
 
-    @staticmethod
-    def get_inpaint_area_by_selection(input_sub_area, mask):
-        print('use selection area for inpainting')
+    def get_inpaint_area_by_selection(self, input_sub_area, mask):
+        if not self.disable_progress:
+            print('use selection area for inpainting')
         height, width = mask.shape[:2]
         ymin, ymax, _, _ = input_sub_area
         interval_size = 135
@@ -235,9 +237,10 @@ class STTNVideoInpaint:
         # 返回视频读取对象、帧信息和视频写入对象
         return reader, frame_info
 
-    def __init__(self, video_path, mask_path=None, clip_gap=None):
+    def __init__(self, video_path, mask_path=None, clip_gap=None, disable_progress=False):
         # STTNInpaint视频修复实例初始化
-        self.sttn_inpaint = STTNInpaint()
+        self.sttn_inpaint = STTNInpaint(disable_progress=disable_progress)
+        self.disable_progress = disable_progress
         # 视频和掩码路径
         self.video_path = video_path
         self.mask_path = mask_path
@@ -283,7 +286,9 @@ class STTNVideoInpaint:
             for i in range(rec_time):
                 start_f = i * self.clip_gap  # 起始帧位置
                 end_f = min((i + 1) * self.clip_gap, frame_info['len'])  # 结束帧位置
-                print('Processing:', start_f + 1, '-', end_f, ' / Total:', frame_info['len'])
+                # 设置处理信息到进度条postfix中（只显示总帧数）
+                if input_sub_remover and hasattr(input_sub_remover, 'current_processing_info'):
+                    input_sub_remover.current_processing_info = f"{frame_info['len']} frames"
                 
                 frames_hr = []  # 高分辨率帧列表
                 frames = {}  # 帧字典，用于存储裁剪后的图像
