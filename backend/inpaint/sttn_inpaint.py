@@ -286,9 +286,14 @@ class STTNVideoInpaint:
             for i in range(rec_time):
                 start_f = i * self.clip_gap  # 起始帧位置
                 end_f = min((i + 1) * self.clip_gap, frame_info['len'])  # 结束帧位置
-                # 设置处理信息到进度条postfix中（只显示总帧数）
-                if input_sub_remover and hasattr(input_sub_remover, 'current_processing_info'):
-                    input_sub_remover.current_processing_info = f"{frame_info['len']} frames"
+                # 只在第一次迭代时设置处理信息（避免重复追加）
+                if i == 0 and input_sub_remover and hasattr(input_sub_remover, 'current_processing_info'):
+                    # 如果已有视频名信息，则追加帧数；否则只设置帧数
+                    current_info = input_sub_remover.current_processing_info
+                    if current_info and current_info.startswith('video='):
+                        input_sub_remover.current_processing_info = f"{current_info}, {frame_info['len']} frames"
+                    else:
+                        input_sub_remover.current_processing_info = f"{frame_info['len']} frames"
                 
                 frames_hr = []  # 高分辨率帧列表
                 frames = {}  # 帧字典，用于存储裁剪后的图像

@@ -109,18 +109,20 @@ class VideoConsumer:
 
             # 创建字幕去除对象
             # 注意：不禁用进度条，让backend显示该视频的处理进度
+            video_name = Path(task.cut_video_path).name
             remover = SubtitleRemover(
                 vd_path=task.cut_video_path,
                 sub_area=sub_area,
                 gui_mode=False,
-                disable_progress=False  # 改为False，让backend显示进度条
+                disable_progress=False,  # 让backend显示进度条
+                show_processing_info=False  # 不显示处理信息，避免干扰进度条
             )
+
+            # 设置当前处理信息（视频名称），会在进度条postfix中显示
+            remover.current_processing_info = f"video={video_name}"
 
             # 执行去字幕处理
             start_time = time.time()
-
-            # 在处理前打印当前视频信息
-            print(f"\n[行{task.row_index}] 正在处理: {Path(task.cut_video_path).name}")
 
             remover.run()
             elapsed_time = time.time() - start_time
@@ -138,7 +140,7 @@ class VideoConsumer:
                 self.logger.error(f"生成的输出文件不存在: {generated_output}")
                 return False
 
-            print(f"[行{task.row_index}] ✓ 完成: {Path(task.final_output_path).name} (耗时: {elapsed_time:.1f}秒)")
+            print(f"\n[行{task.row_index}] ✓ 完成: {Path(task.final_output_path).name} (耗时: {elapsed_time:.1f}秒)")
 
             # 如果不保留中间文件，删除cutoff后的视频
             if not self.config.keep_intermediate:

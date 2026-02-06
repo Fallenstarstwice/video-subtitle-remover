@@ -576,7 +576,7 @@ class SubtitleDetect:
 
 
 class SubtitleRemover:
-    def __init__(self, vd_path, sub_area=None, gui_mode=False, disable_progress=False):
+    def __init__(self, vd_path, sub_area=None, gui_mode=False, disable_progress=False, show_processing_info=True):
         importlib.reload(config)
         # 线程锁
         self.lock = threading.RLock()
@@ -586,6 +586,8 @@ class SubtitleRemover:
         self.gui_mode = gui_mode
         # 是否禁用进度条（用于批量处理时避免进度条冲突）
         self.disable_progress = disable_progress
+        # 是否显示处理信息（用于批量处理时避免干扰进度条）
+        self.show_processing_info = show_processing_info
         # 判断是否为图片
         self.is_picture = False
         if is_image_file(str(vd_path)):
@@ -620,7 +622,7 @@ class SubtitleRemover:
             if not os.path.exists(pic_dir):
                 os.makedirs(pic_dir)
             self.video_out_name = os.path.join(pic_dir, f'{self.vd_name}{self.ext}')
-        if not self.disable_progress:
+        if self.show_processing_info:
             if torch.cuda.is_available():
                 print('use GPU for acceleration')
             if config.USE_DML:
@@ -694,7 +696,7 @@ class SubtitleRemover:
             tbar.set_postfix({'info': self.current_processing_info})
 
     def propainter_mode(self, tbar):
-        if not self.disable_progress:
+        if self.show_processing_info:
             print('use propainter mode')
         sub_list = self.sub_detector.find_subtitle_frame_no(sub_remover=self)
         continuous_frame_no_list = self.sub_detector.find_continuous_ranges_with_same_mask(sub_list)
@@ -702,7 +704,7 @@ class SubtitleRemover:
         continuous_frame_no_list = self.sub_detector.split_range_by_scene(continuous_frame_no_list,
                                                                           scene_div_points)
         self.video_inpaint = VideoInpaint(config.PROPAINTER_MAX_LOAD_NUM)
-        if not self.disable_progress:
+        if self.show_processing_info:
             print('[Processing] start removing subtitles...')
         index = 0
         while True:
@@ -790,14 +792,14 @@ class SubtitleRemover:
         """
         使用sttn对选中区域进行重绘，不进行字幕检测
         """
-        if not self.disable_progress:
+        if self.show_processing_info:
             print('use sttn mode with no detection')
-        if not self.disable_progress:
+        if self.show_processing_info:
             print('[Processing] start removing subtitles...')
         if self.sub_area is not None:
             ymin, ymax, xmin, xmax = self.sub_area
         else:
-            if not self.disable_progress:
+            if self.show_processing_info:
                 print('[Info] No subtitle area has been set. Video will be processed in full screen. As a result, the final outcome might be suboptimal.')
             ymin, ymax, xmin, xmax = 0, self.frame_height, 0, self.frame_width
         mask_area_coordinates = [(xmin, xmax, ymin, ymax)]
@@ -811,22 +813,22 @@ class SubtitleRemover:
             # 若跳过则世界使用sttn模式
             self.sttn_mode_with_no_detection(tbar)
         else:
-            if not self.disable_progress:
+            if self.show_processing_info:
                 print('use sttn mode')
             sttn_inpaint = STTNInpaint(disable_progress=self.disable_progress)
             sub_list = self.sub_detector.find_subtitle_frame_no(sub_remover=self)
             continuous_frame_no_list = self.sub_detector.find_continuous_ranges_with_same_mask(sub_list)
-            if not self.disable_progress:
+            if self.show_processing_info:
                 print(continuous_frame_no_list)
             continuous_frame_no_list = self.sub_detector.filter_and_merge_intervals(continuous_frame_no_list)
-            if not self.disable_progress:
+            if self.show_processing_info:
                 print(continuous_frame_no_list)
             start_end_map = dict()
             for interval in continuous_frame_no_list:
                 start, end = interval
                 start_end_map[start] = end
             current_frame_index = 0
-            if not self.disable_progress:
+            if self.show_processing_info:
                 print('[Processing] start removing subtitles...')
             while True:
                 ret, frame = self.video_cap.read()
@@ -888,13 +890,13 @@ class SubtitleRemover:
                         self.update_progress(tbar, increment=len(batch))
 
     def lama_mode(self, tbar):
-        if not self.disable_progress:
+        if self.show_processing_info:
             print('use lama mode')
         sub_list = self.sub_detector.find_subtitle_frame_no(sub_remover=self)
         if self.lama_inpaint is None:
             self.lama_inpaint = LamaInpaint()
         index = 0
-        if not self.disable_progress:
+        if self.show_processing_info:
             print('[Processing] start removing subtitles...')
         while True:
             ret, frame = self.video_cap.read()
@@ -931,8 +933,8 @@ class SubtitleRemover:
             tbar = tqdm(total=int(self.frame_count), unit='frame', position=0, file=null_file,
                         desc='Subtitle Removing', disable=True)
         else:
-            tbar = tqdm(total=int(self.frame_count), unit='frame', position=0, file=sys.__stdout__,
-                        desc='Subtitle Removing')
+            tbar = tqdm(total=int(self.frame_count), unit='frame', position=1, leave=False,
+                        file=sys.__stdout__, desc='Subtitle Removing')
 
         if self.is_picture:
             sub_list = self.sub_detector.find_subtitle_frame_no(sub_remover=self)
