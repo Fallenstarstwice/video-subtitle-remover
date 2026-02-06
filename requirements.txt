@@ -1,6 +1,6 @@
 albumentations
 filesplit==3.0.1
-opencv-python
+opencv-python>=4.13
 scikit-image
 imgaug
 pyclipper
@@ -12,6 +12,7 @@ PySimpleGUI-4-foss
 easydict
 scikit-learn
 pandas
+openpyxl
 webdataset
 numpy
 protobuf
