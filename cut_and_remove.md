@@ -63,7 +63,7 @@ cut_and_remove/
 
 ```bash
 # 进入项目根目录
-cd d:\not_system_programfiles\video-subtitle-remover
+cd ~/video-subtitle-remover
 
 # 运行处理（Excel文件包含视频路径和时间戳）
 python cut_and_remove/main.py your_videos.xlsx
