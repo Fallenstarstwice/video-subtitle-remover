@@ -1,0 +1,53 @@
+# Cut and Remove 模块配置文件
+# 此配置文件用于控制视频片段删除和字幕去除的处理流程
+
+# ============================================
+# 输出路径配置
+# ============================================
+output:
+  # 中间视频输出目录（阶段1：cutoff删除片段后的视频）
+  # 默认值: output/intermediate
+  intermediate_dir: "output/intermediate"
+
+  # 最终输出目录（阶段2：去除字幕后的视频）
+  # 默认值: output/final
+  final_dir: "output/final"
+
+  # 是否保留中间文件
+  # true: 保留 cutoff 后的中间视频
+  # false: 删除中间视频（节省磁盘空间）
+  keep_intermediate: false
+
+
+# ============================================
+# 处理配置
+# ============================================
+processing:
+  # 队列最大长度
+  # 说明: 控制内存中最多缓存多少个待处理的视频任务
+  # 建议值: 5-20（根据可用内存调整）
+  max_queue_size: 10
+
+  # 是否显示详细日志
+  # true: 显示每个视频的详细处理信息
+  # false: 只显示关键信息
+  verbose: true
+
+  # 字幕区域配置文件路径
+  # 说明: 复用 backend/subtitle_area.yaml 配置
+  subtitle_area_config: "./backend/subtitle_area.yaml"
+
+
+# ============================================
+# FFmpeg 配置
+# ============================================
+ffmpeg:
+  # 是否使用项目内ffmpeg
+  # true: 使用项目内置的 ffmpeg（backend/config.py 中配置的路径）
+  # false: 使用下面的 custom_path 指定的 ffmpeg
+  use_builtin: true
+
+  # 自定义 ffmpeg 路径
+  # 仅在 use_builtin = false 时生效
+  # 示例: "C:/ffmpeg/bin/ffmpeg.exe" 或 "/usr/bin/ffmpeg"
+  custom_path: ""

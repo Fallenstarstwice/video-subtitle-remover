@@ -3,8 +3,18 @@
 使用FFmpeg删除视频中的指定片段
 """
 import subprocess
+import os
+import sys
 from typing import List, Tuple, Optional
 from pathlib import Path
+
+# 添加项目根目录到路径，以便导入backend模块
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
+
+# 导入FFmpeg路径配置
+from backend.config import FFMPEG_PATH
 
 
 def get_video_duration(video_path: str) -> Optional[float]:
@@ -18,8 +28,11 @@ def get_video_duration(video_path: str) -> Optional[float]:
         视频时长（秒），失败返回None
     """
     try:
+        # 使用项目内的FFmpeg路径
+        ffprobe_path = str(Path(FFMPEG_PATH).parent / 'ffprobe.exe') if os.name == 'nt' else str(Path(FFMPEG_PATH).parent / 'ffprobe')
+
         cmd = [
-            'ffprobe',
+            ffprobe_path,
             '-v', 'error',
             '-show_entries', 'format=duration',
             '-of', 'default=noprint_wrappers=1:nokey=1',
@@ -136,7 +149,7 @@ def remove_video_segments(input_path: str,
             start_time = format_seconds_to_ffmpeg(start)
 
             cmd = [
-                'ffmpeg',
+                FFMPEG_PATH,
                 '-ss', start_time,
                 '-t', format_seconds_to_ffmpeg(duration),
                 '-i', input_path,
@@ -172,7 +185,7 @@ def remove_video_segments(input_path: str,
 
             # 使用 subprocess 直接调用 FFmpeg（更可靠）
             cmd = [
-                'ffmpeg',
+                FFMPEG_PATH,
                 '-i', input_path,
                 '-filter_complex', filter_complex,
                 '-map', '[outv]',
