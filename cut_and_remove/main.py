@@ -26,6 +26,14 @@ sys.path.insert(0, str(project_root))
 from backend.config import FFMPEG_PATH
 
 # 导入cut_and_remove模块
+import sys
+from pathlib import Path
+
+# 添加当前目录到路径以确保能导入模块
+current_dir = Path(__file__).parent
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
+
 from config_loader import load_config, CutAndRemoveConfig
 from producer import run_producer
 from consumer import run_consumer

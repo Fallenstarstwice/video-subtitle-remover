@@ -28,24 +28,28 @@ def get_video_duration(video_path: str) -> Optional[float]:
         视频时长（秒），失败返回None
     """
     try:
-        # 使用项目内的FFmpeg路径
-        ffprobe_path = str(Path(FFMPEG_PATH).parent / 'ffprobe.exe') if os.name == 'nt' else str(Path(FFMPEG_PATH).parent / 'ffprobe')
-
+        # 使用 ffmpeg 获取视频时长（不依赖 ffprobe）
         cmd = [
-            ffprobe_path,
-            '-v', 'error',
-            '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            video_path
+            FFMPEG_PATH,
+            '-i', video_path,
+            '-f', 'null', '-'
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # 合并 stdout 和 stderr，从输出中解析时长
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
-        if result.returncode != 0:
-            print(f"获取视频时长失败: {result.stderr}")
+        # 从 ffmpeg 输出中解析时长
+        # 格式: Duration: HH:MM:SS.mm
+        import re
+        match = re.search(r'Duration:\s+(\d+):(\d+):(\d+\.\d+)', result.stdout)
+        if match:
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            seconds = float(match.group(3))
+            duration = hours * 3600 + minutes * 60 + seconds
+            return duration
+        else:
+            print(f"无法从输出中解析视频时长")
             return None
-
-        duration = float(result.stdout.strip())
-        return duration
     except Exception as e:
         print(f"获取视频时长失败: {e}")
         return None

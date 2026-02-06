@@ -22,8 +22,14 @@ from main import SubtitleRemover, read_subtitle_area_from_config
 from tools.common_tools import is_video_or_image
 
 # 导入任务队列模块
-from .task_queue import VideoTask, TaskStatus, STOP_SIGNAL
-from .config_loader import CutAndRemoveConfig
+try:
+    # 尝试相对导入（作为包使用时）
+    from .task_queue import VideoTask, TaskStatus, STOP_SIGNAL
+    from .config_loader import CutAndRemoveConfig
+except ImportError:
+    # 回退到绝对导入（直接运行时）
+    from task_queue import VideoTask, TaskStatus, STOP_SIGNAL
+    from config_loader import CutAndRemoveConfig
 
 
 class VideoConsumer:

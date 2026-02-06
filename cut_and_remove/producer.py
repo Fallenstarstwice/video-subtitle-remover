@@ -23,8 +23,14 @@ from path_resolver import resolve_video_path
 from video_processor import remove_video_segments, format_seconds_to_ffmpeg
 
 # 导入任务队列模块
-from .task_queue import VideoTask, TaskStatus, STOP_SIGNAL
-from .config_loader import CutAndRemoveConfig
+try:
+    # 尝试相对导入（作为包使用时）
+    from .task_queue import VideoTask, TaskStatus, STOP_SIGNAL
+    from .config_loader import CutAndRemoveConfig
+except ImportError:
+    # 回退到绝对导入（直接运行时）
+    from task_queue import VideoTask, TaskStatus, STOP_SIGNAL
+    from config_loader import CutAndRemoveConfig
 
 
 class VideoProducer:
