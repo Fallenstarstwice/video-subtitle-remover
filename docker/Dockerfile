@@ -6,21 +6,21 @@ RUN --mount=type=cache,target=/root/.cache,sharing=private \
     true
 
 ADD . /vsr
-ARG CUDA_VERSION=11.8
+ARG CUDA_VERSION=12.6
 ARG USE_DIRECTML=0
 
 # 如果是 CUDA 版本，执行 CUDA 特定设置
 RUN --mount=type=cache,target=/root/.cache,sharing=private \
     if [ "${USE_DIRECTML:-0}" != "1" ]; then \
-        pip install paddlepaddle==3.0 && \
-        pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu$(echo ${CUDA_VERSION} | tr -d '.') && \
+        pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/ && \
+        pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu$(echo ${CUDA_VERSION} | tr -d '.') && \
         pip install -r /vsr/requirements.txt; \
     fi
 
 # 如果是 DirectML 版本，执行 DirectML 特定设置
 RUN --mount=type=cache,target=/root/.cache,sharing=private \
     if [ "${USE_DIRECTML:-0}" = "1" ]; then \
-        pip install paddlepaddle==3.0 && \
+        pip install paddlepaddle==3.3.0 && \
         pip install torch_directml==0.2.5.dev240914 && \
         pip install -r /vsr/requirements.txt; \
     fi
