@@ -6,7 +6,7 @@ RUN --mount=type=cache,target=/root/.cache,sharing=private \
     true
 
 ADD . /vsr
-ARG CUDA_VERSION=12.6
+ARG CUDA_VERSION=12.8
 ARG USE_DIRECTML=0
 
 # 如果是 CUDA 版本，执行 CUDA 特定设置

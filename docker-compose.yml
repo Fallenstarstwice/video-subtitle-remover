@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  video-subtitle-remover:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        CUDA_VERSION: "12.8"
+        USE_DIRECTML: "0"
+    image: video-subtitle-remover:cu12.8
+    container_name: vsr-app
+
+    # GPU 支持 (需要安装 nvidia-docker2)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # 环境变量
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=all
+
+    # 目录挂载
+    volumes:
+      # 输入视频目录（将你的视频文件放在这里）
+      - ./videos:/vsr/videos
+      # 输出目录（处理后的视频会保存到这里）
+      - ./output:/vsr/output
+      # 字幕区域配置文件
+      - ./backend/subtitle_area.yaml:/vsr/backend/subtitle_area.yaml
+      # Cut and Remove 配置文件（可选）
+      - ./cut_and_remove/config.yaml:/vsr/cut_and_remove/config.yaml
+
+    # 交互式终端支持
+    stdin_open: true
+    tty: true
+
+    # 工作目录
+    working_dir: /vsr
+
+    # 默认命令（可以通过 docker-compose run 覆盖）
+    # 使用占位符，需要替换为实际的 Excel 文件路径
+    command: python cut_and_remove/main.py /vsr/videos/videos.xlsx
+
+    # 容器重启策略
+    restart: "no"

@@ -1,0 +1,61 @@
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+videoenv/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 输出目录（不需要打包进镜像）
+output/
+videos/
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.flv
+
+# 日志和临时文件
+*.log
+*.tmp
+temp/
+tmp/
+
+# 文档
+README.md
+docs/
+*.md
+
+# Windows 相关
+Thumbs.db
+Desktop.ini
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker 相关
+docker-compose.yml
+.dockerignore
+Dockerfile*
+
+# 其他
+.DS_Store
