@@ -76,18 +76,18 @@ class VideoConsumer:
 
     def _get_subtitle_area(self, video_path: str):
         """
-        从配置文件读取字幕区域
+        从配置文件读取字幕区域（支持多区域）
 
         Args:
             video_path: 视频文件路径（用于获取视频尺寸）
 
         Returns:
-            tuple: (ymin, ymax, xmin, xmax) 或 None
+            list: [(ymin, ymax, xmin, xmax), ...] 或 None
         """
         try:
             # 传递 verbose=False 以禁用输出，避免干扰进度条
-            sub_area = read_subtitle_area_from_config(video_path, verbose=False)
-            return sub_area
+            sub_areas = read_subtitle_area_from_config(video_path, verbose=False)
+            return sub_areas  # 返回区域列表
         except Exception as e:
             self.logger.warning(f"读取字幕区域配置失败: {e}")
             self.logger.info("将使用全屏字幕检测")
@@ -104,15 +104,15 @@ class VideoConsumer:
             bool: 处理成功返回True，失败返回False
         """
         try:
-            # 读取字幕区域配置
-            sub_area = self._get_subtitle_area(task.cut_video_path)
+            # 读取字幕区域配置（支持多区域）
+            sub_areas = self._get_subtitle_area(task.cut_video_path)
 
             # 创建字幕去除对象
             # 注意：不禁用进度条，让backend显示该视频的处理进度
             video_name = Path(task.cut_video_path).name
             remover = SubtitleRemover(
                 vd_path=task.cut_video_path,
-                sub_area=sub_area,
+                sub_areas=sub_areas,  # 使用 sub_areas 参数
                 gui_mode=False,
                 disable_progress=False,  # 让backend显示进度条
                 show_processing_info=False  # 不显示处理信息，避免干扰进度条

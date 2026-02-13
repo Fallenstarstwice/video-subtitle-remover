@@ -32,9 +32,21 @@ class SubtitleDetect:
     文本框检测类，用于检测视频帧中是否存在文本框
     """
 
-    def __init__(self, video_path, sub_area=None, disable_progress=False):
+    def __init__(self, video_path, sub_areas=None, disable_progress=False):
+        """
+        初始化字幕检测器
+
+        Args:
+            video_path: 视频文件路径
+            sub_areas: 字幕区域列表 [(ymin, ymax, xmin, xmax), ...] 或 None
+            disable_progress: 是否禁用进度条
+        """
         self.video_path = video_path
-        self.sub_area = sub_area
+        # 兼容旧版本：如果传入单个区域元组，转换为列表
+        if sub_areas is not None and isinstance(sub_areas, tuple) and len(sub_areas) == 4:
+            self.sub_areas = [sub_areas]
+        else:
+            self.sub_areas = sub_areas if sub_areas else []
         self.disable_progress = disable_progress
 
     @cached_property
@@ -110,13 +122,16 @@ class SubtitleDetect:
                 temp_list = []
                 for coordinate in coordinate_list:
                     xmin, xmax, ymin, ymax = coordinate
-                    if self.sub_area is not None:
-                        s_ymin, s_ymax, s_xmin, s_xmax = self.sub_area
-                        if (s_xmin <= xmin and xmax <= s_xmax
-                                and s_ymin <= ymin
-                                and ymax <= s_ymax):
-                            temp_list.append((xmin, xmax, ymin, ymax))
+                    # 检查是否在任何一个字幕区域内
+                    if self.sub_areas:
+                        for s_ymin, s_ymax, s_xmin, s_xmax in self.sub_areas:
+                            if (s_xmin <= xmin and xmax <= s_xmax
+                                    and s_ymin <= ymin
+                                    and ymax <= s_ymax):
+                                temp_list.append((xmin, xmax, ymin, ymax))
+                                break  # 找到一个匹配区域后跳出
                     else:
+                        # 没有指定区域，保留所有检测到的字幕
                         temp_list.append((xmin, xmax, ymin, ymax))
                 if len(temp_list) > 0:
                     subtitle_frame_no_box_dict[current_frame_no] = temp_list
@@ -576,12 +591,15 @@ class SubtitleDetect:
 
 
 class SubtitleRemover:
-    def __init__(self, vd_path, sub_area=None, gui_mode=False, disable_progress=False, show_processing_info=True):
+    def __init__(self, vd_path, sub_areas=None, gui_mode=False, disable_progress=False, show_processing_info=True):
         importlib.reload(config)
         # 线程锁
         self.lock = threading.RLock()
-        # 用户指定的字幕区域位置
-        self.sub_area = sub_area
+        # 兼容旧版本：如果传入单个区域元组，转换为列表
+        if sub_areas is not None and isinstance(sub_areas, tuple) and len(sub_areas) == 4:
+            self.sub_areas = [sub_areas]
+        else:
+            self.sub_areas = sub_areas if sub_areas else []
         # 是否为gui运行，gui运行需要显示预览
         self.gui_mode = gui_mode
         # 是否禁用进度条（用于批量处理时避免进度条冲突）
@@ -591,7 +609,7 @@ class SubtitleRemover:
         # 判断是否为图片
         self.is_picture = False
         if is_image_file(str(vd_path)):
-            self.sub_area = None
+            self.sub_areas = []  # 图片不使用字幕区域
             self.is_picture = True
         # 视频路径
         self.video_path = vd_path
@@ -607,8 +625,8 @@ class SubtitleRemover:
         self.mask_size = (int(self.video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(self.video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
         self.frame_height = int(self.video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.frame_width = int(self.video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        # 创建字幕检测对象
-        self.sub_detector = SubtitleDetect(self.video_path, self.sub_area, self.disable_progress)
+        # 创建字幕检测对象（传递区域列表）
+        self.sub_detector = SubtitleDetect(self.video_path, self.sub_areas, self.disable_progress)
         # 创建视频临时对象，windows下delete=True会有permission denied的报错
         self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
         # 创建视频写对象
@@ -796,13 +814,15 @@ class SubtitleRemover:
             print('use sttn mode with no detection')
         if self.show_processing_info:
             print('[Processing] start removing subtitles...')
-        if self.sub_area is not None:
-            ymin, ymax, xmin, xmax = self.sub_area
+        if self.sub_areas:
+            # 使用所有配置的字幕区域
+            mask_area_coordinates = []
+            for ymin, ymax, xmin, xmax in self.sub_areas:
+                mask_area_coordinates.append((xmin, xmax, ymin, ymax))
         else:
             if self.show_processing_info:
                 print('[Info] No subtitle area has been set. Video will be processed in full screen. As a result, the final outcome might be suboptimal.')
-            ymin, ymax, xmin, xmax = 0, self.frame_height, 0, self.frame_width
-        mask_area_coordinates = [(xmin, xmax, ymin, ymax)]
+            mask_area_coordinates = [(0, self.frame_width, 0, self.frame_height)]
         mask = create_mask(self.mask_size, mask_area_coordinates)
         sttn_video_inpaint = STTNVideoInpaint(self.video_path, disable_progress=self.disable_progress)
         sttn_video_inpaint(input_mask=mask, input_sub_remover=self, tbar=tbar)
@@ -1023,12 +1043,12 @@ class SubtitleRemover:
             self.video_temp_file.close()
 
 
-# 读取配置文件，获取字幕区域比例并转换为像素坐标
+# 读取配置文件，获取字幕区域比例并转换为像素坐标（支持多区域）
 def read_subtitle_area_from_config(video_path, verbose=True):
     import yaml
     import cv2
 
-    # 2. 先获取视频尺寸（参考 gui.py:198-200）
+    # 1. 获取视频尺寸
     video_cap = cv2.VideoCapture(video_path)
     if not video_cap.isOpened():
         raise ValueError(f"无法打开视频文件: {video_path}")
@@ -1037,47 +1057,58 @@ def read_subtitle_area_from_config(video_path, verbose=True):
     frame_width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     video_cap.release()
 
-    # 3. 解析 subtitle_area.yaml 配置文件
-    with open('./backend/subtitle_area.yaml', 'r', encoding='utf-8') as f:
-        sub_area_config = yaml.safe_load(f)
-        y_p = sub_area_config.get('Y', None)    # Y轴起始比例
-        h_p = sub_area_config.get('H', None)    # 高度比例
-        x_p = sub_area_config.get('X', None)    # X轴起始比例
-        w_p = sub_area_config.get('W', None)    # 宽度比例
-    # 4. 验证配置完整性
-    if None in [y_p, h_p, x_p, w_p]:
-        raise ValueError("subtitle_area.yaml 配置不完整，请检查 Y, H, X, W 是否都存在")
+    # 2. 解析 subtitle_area.yaml 配置文件
+    config_path = './backend/subtitle_area.yaml'
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
 
-    # 5. 【关键】将比例转换为像素（参考 gui.py:213-216）
-    y = frame_height * y_p   # Y轴起始位置（像素）
-    h = frame_height * h_p   # 高度（像素）
-    x = frame_width * x_p    # X轴起始位置（像素）
-    w = frame_width * w_p    # 宽度（像素）
+    # 3. 判断是旧格式（单区域）还是新格式（多区域）
+    if 'areas' in config and config['areas'] is not None:
+        # 新格式：多区域列表
+        areas_config = config['areas']
+    else:
+        # 旧格式：向后兼容，转换为单元素列表
+        areas_config = [config]
 
-    # 6. 【关键】计算坐标（参考 gui.py:257-260）
-    ymin = int(y)
-    ymax = int(y + h)
-    xmin = int(x)
-    xmax = int(x + w)
+    # 4. 转换所有区域为像素坐标
+    subtitle_areas = []
+    for area_config in areas_config:
+        y_p = area_config.get('Y')
+        h_p = area_config.get('H')
+        x_p = area_config.get('X')
+        w_p = area_config.get('W')
 
-    # 7. 【关键】边界检查（参考 gui.py:261-264）
-    if ymax > frame_height:
-        ymax = frame_height
-    if xmax > frame_width:
-        xmax = frame_width
+        # 验证配置完整性
+        if None in [y_p, h_p, x_p, w_p]:
+            raise ValueError("字幕区域配置不完整，需要 Y, H, X, W")
 
-    # 验证坐标合理性
-    if ymin >= ymax or xmin >= xmax:
-        raise ValueError(f"计算出的坐标不合理: ymin={ymin}, ymax={ymax}, xmin={xmin}, xmax={xmax}")
+        # 比例转像素
+        ymin = int(frame_height * y_p)
+        ymax = int(frame_height * (y_p + h_p))
+        xmin = int(frame_width * x_p)
+        xmax = int(frame_width * (x_p + w_p))
 
+        # 边界检查
+        if ymax > frame_height:
+            ymax = frame_height
+        if xmax > frame_width:
+            xmax = frame_width
+
+        # 验证坐标合理性
+        if ymin >= ymax or xmin >= xmax:
+            raise ValueError(f"计算出的坐标不合理: ymin={ymin}, ymax={ymax}, xmin={xmin}, xmax={xmax}")
+
+        subtitle_areas.append((ymin, ymax, xmin, xmax))
+
+    # 5. 输出日志
     if verbose:
-        print(f'Loaded subtitle area from subtitle_area.yaml:')
-        print(f'  Ratio: Y={y_p}, H={h_p}, X={x_p}, W={w_p}')
-        print(f'  Coordinates: ({ymin}, {ymax}, {xmin}, {xmax})')
+        print(f'Loaded {len(subtitle_areas)} subtitle area(s) from {config_path}:')
+        for i, (ymin, ymax, xmin, xmax) in enumerate(subtitle_areas):
+            area_name = areas_config[i].get('name', f'Area_{i+1}') if i < len(areas_config) else f'Area_{i+1}'
+            print(f'  [{area_name}] Coordinates: ({ymin}, {ymax}, {xmin}, {xmax})')
         print(f'  Video size: {frame_width}x{frame_height}\n')
 
-
-    return ymin, ymax, xmin, xmax
+    return subtitle_areas  # 返回区域列表
 
 
 if __name__ == '__main__':
@@ -1085,12 +1116,12 @@ if __name__ == '__main__':
     # 1. 提示用户输入视频路径
     video_path = input(f"Please input video or image file path: ").strip()
 
-    # 8. 按照代码库约定创建 sub_area（格式：ymin, ymax, xmin, xmax）
-    sub_area = read_subtitle_area_from_config(video_path)
+    # 读取字幕区域配置（返回列表）
+    sub_areas = read_subtitle_area_from_config(video_path)
 
-    # 9. 新建字幕提取对象
+    # 新建字幕提取对象
     if is_video_or_image(video_path):
-        sd = SubtitleRemover(video_path, sub_area=sub_area)
+        sd = SubtitleRemover(video_path, sub_areas=sub_areas)
         sd.run()
     else:
         print(f'Invalid video path: {video_path}')
